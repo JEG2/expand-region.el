@@ -56,6 +56,37 @@
       (while (looking-back symbol-regexp)
         (backward-char)))))
 
+(defun er/search-forward-for-closed-nesting (open close)
+  "A helper function for matching nested constructs."
+  (while (and (not (looking-at (regexp-quote close)))
+              (< (point) (point-max)))
+    (cond ((looking-at (regexp-quote open))
+           (forward-char)
+           (er/search-forward-for-closed-nesting open close))
+          (t (forward-char))))
+  (if (looking-at (regexp-quote close)) (forward-char)))
+
+(defun er/mark-ruby-choose-your-own-quotes ()
+  "Mark choose-your-own-quotes style string, arrays, regexen, etc."
+  (interactive)
+  (let ((quote_start)
+        (quote_end))
+    (save-excursion
+      (while (and (not (looking-back "%[qQwWr]{"))
+                  (> (point) (point-min)))
+        (backward-char))
+      (when (looking-back "%[qQwWr]{")
+        (setq quote_start (- (point) 3))
+        (er/search-forward-for-closed-nesting "{" "}")
+        (when (looking-back "}")
+          (setq quote_end (point)))))
+    (when (and quote_start
+               quote_end
+               (<= quote_start (point))
+               (>= quote_end   (point)))
+      (set-mark  quote_end)
+      (goto-char quote_start))))
+
 (defun er/mark-ruby-function ()
   "Mark the current Ruby function."
   (interactive)
@@ -71,14 +102,14 @@
   (end-of-line)
   (exchange-point-and-mark))
 
-
 (defun er/add-ruby-mode-expansions ()
   "Adds Ruby-specific expansions for buffers in ruby-mode"
-  (set (make-local-variable 'er/try-expand-list) (append
-                                                  er/try-expand-list
-                                                  '(er/mark-ruby-symbol
-                                                    er/mark-ruby-block
-                                                    er/mark-ruby-function))))
+  (set (make-local-variable 'er/try-expand-list)
+       (append er/try-expand-list
+               '(er/mark-ruby-symbol
+                 er/mark-ruby-choose-your-own-quotes
+                 er/mark-ruby-block
+                 er/mark-ruby-function))))
 
 (add-hook 'ruby-mode-hook 'er/add-ruby-mode-expansions)
 
